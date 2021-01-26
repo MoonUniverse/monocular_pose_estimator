@@ -29,8 +29,8 @@
 #ifndef COMBINATIONS_H_
 #define COMBINATIONS_H_
 
-#include <Eigen/Dense>
-#include <Eigen/Geometry>
+#include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/Geometry>
 #include <math.h>
 #include "monocular_pose_estimator_lib/datatypes.h"
 

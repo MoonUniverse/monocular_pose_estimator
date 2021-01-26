@@ -29,7 +29,7 @@
 #ifndef DATATYPES_H_
 #define DATATYPES_H_
 
-#include <Eigen/Dense>
+#include <eigen3/Eigen/Dense>
 
 namespace monocular_pose_estimator
 {

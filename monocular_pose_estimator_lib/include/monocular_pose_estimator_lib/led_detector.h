@@ -30,7 +30,7 @@
 #define LEDDETECTOR_H_
 
 #include <opencv2/opencv.hpp>
-#include <Eigen/Dense>
+#include <eigen3/Eigen/Dense>
 #include <algorithm>
 
 namespace monocular_pose_estimator

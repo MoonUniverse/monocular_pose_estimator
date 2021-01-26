@@ -29,7 +29,7 @@
 #ifndef VISUALIZATION_H_
 #define VISUALIZATION_H_
 
-#include <Eigen/Geometry>
+#include <eigen3/Eigen/Geometry>
 #include <opencv2/opencv.hpp>
 
 namespace monocular_pose_estimator

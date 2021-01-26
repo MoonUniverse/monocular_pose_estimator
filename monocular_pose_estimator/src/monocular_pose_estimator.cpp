@@ -46,8 +46,9 @@ MPENode::MPENode(const ros::NodeHandle& nh, const ros::NodeHandle& nh_private)
   dr_server_.setCallback(cb_);
 
   // Initialize subscribers
-  image_sub_ = nh_.subscribe("/camera/image_raw", 1, &MPENode::imageCallback, this);
-  camera_info_sub_ = nh_.subscribe("/camera/camera_info", 1, &MPENode::cameraInfoCallback, this);
+  image_sub_ = nh_.subscribe("/usb_cam/image_raw", 1, &MPENode::imageCallback, this);
+  camera_info_sub_ = nh_.subscribe("/usb_cam/camera_info", 1, &MPENode::cameraInfoCallback, this);
+  ROS_INFO("Helloworld");
 
   // Initialize pose publisher
   pose_pub_ = nh_.advertise<geometry_msgs::PoseWithCovarianceStamped>("estimated_pose", 1);

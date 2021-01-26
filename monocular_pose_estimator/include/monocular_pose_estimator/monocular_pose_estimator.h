@@ -35,8 +35,8 @@
 #include <sensor_msgs/image_encodings.h>
 
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
-#include <Eigen/Dense>
-#include <Eigen/Geometry>
+#include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/Geometry>
 
 #include <opencv2/opencv.hpp>
 #include <image_transport/image_transport.h>

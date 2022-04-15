@@ -76,7 +76,7 @@ bool PoseEstimator::estimateBodyPose(cv::Mat image, double time_to_predict) {
         distorted_detection_centers_, camera_matrix_K_,
         camera_distortion_coeffs_);
 
-    printf("Detected led positions: %d \r\n", detected_led_positions.size());
+    printf("Detected led positions: %ld \r\n", detected_led_positions.size());
 
     if (detected_led_positions.size() >=
         min_num_leds_detected_) // If found enough LEDs, Reinitialise

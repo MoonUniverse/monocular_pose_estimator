@@ -22,39 +22,44 @@
 
 /**
  * \file led_detector.cpp
- * \brief File containing the function definitions required for detecting LEDs and visualising their detections and the pose of the tracked object.
+ * \brief File containing the function definitions required for detecting LEDs
+ * and visualising their detections and the pose of the tracked object.
  *
  */
 
 #include "monocular_pose_estimator_lib/led_detector.h"
 
-namespace monocular_pose_estimator
-{
+namespace monocular_pose_estimator {
 
 // LED detector
-void LEDDetector::findLeds(const cv::Mat &image, cv::Rect ROI, const int &threshold_value, const double &gaussian_sigma,
-                           const double &min_blob_area, const double &max_blob_area,
-                           const double &max_width_height_distortion, const double &max_circular_distortion,
-                           List2DPoints &pixel_positions, std::vector<cv::Point2f> &distorted_detection_centers,
-                           const cv::Mat &camera_matrix_K, const std::vector<double> &camera_distortion_coeffs)
-{
+void LEDDetector::findLeds(
+    const cv::Mat &image, cv::Rect ROI, const int &threshold_value,
+    const double &gaussian_sigma, const double &min_blob_area,
+    const double &max_blob_area, const double &max_width_height_distortion,
+    const double &max_circular_distortion, List2DPoints &pixel_positions,
+    std::vector<cv::Point2f> &distorted_detection_centers,
+    const cv::Mat &camera_matrix_K,
+    const std::vector<double> &camera_distortion_coeffs) {
   // Threshold the image
   cv::Mat bw_image;
-  //cv::threshold(image, bwImage, threshold_value, 255, cv::THRESH_BINARY);
+  // cv::threshold(image, bwImage, threshold_value, 255, cv::THRESH_BINARY);
   cv::threshold(image(ROI), bw_image, threshold_value, 255, cv::THRESH_TOZERO);
 
   // Gaussian blur the image
   cv::Mat gaussian_image;
-  cv::Size ksize; // Gaussian kernel size. If equal to zero, then the kerenl size is computed from the sigma
+  cv::Size ksize; // Gaussian kernel size. If equal to zero, then the kerenl
+                  // size is computed from the sigma
   ksize.width = 0;
   ksize.height = 0;
-  GaussianBlur(bw_image.clone(), gaussian_image, ksize, gaussian_sigma, gaussian_sigma, cv::BORDER_DEFAULT);
+  GaussianBlur(bw_image.clone(), gaussian_image, ksize, gaussian_sigma,
+               gaussian_sigma, cv::BORDER_DEFAULT);
 
-  //cv::imshow( "Gaussian", gaussian_image );
+  // cv::imshow( "Gaussian", gaussian_image );
 
   // Find all contours
-  std::vector<std::vector<cv::Point> > contours;
-  cv::findContours(gaussian_image.clone(), contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
+  std::vector<std::vector<cv::Point>> contours;
+  cv::findContours(gaussian_image.clone(), contours, cv::RETR_EXTERNAL,
+                   cv::CHAIN_APPROX_NONE);
 
   unsigned numPoints = 0; // Counter for the number of detected LEDs
 
@@ -62,24 +67,26 @@ void LEDDetector::findLeds(const cv::Mat &image, cv::Rect ROI, const int &thresh
   std::vector<cv::Point2f> distorted_points;
 
   // Identify the blobs in the image
-  for (unsigned i = 0; i < contours.size(); i++)
-  {
-    double area = cv::contourArea(contours[i]); // Blob area
-    cv::Rect rect = cv::boundingRect(contours[i]); // Bounding box
+  for (unsigned i = 0; i < contours.size(); i++) {
+    double area = cv::contourArea(contours[i]);     // Blob area
+    cv::Rect rect = cv::boundingRect(contours[i]);  // Bounding box
     double radius = (rect.width + rect.height) / 4; // Average radius
 
     cv::Moments mu;
     mu = cv::moments(contours[i], false);
     cv::Point2f mc;
-    mc = cv::Point2f(mu.m10 / mu.m00, mu.m01 / mu.m00) + cv::Point2f(ROI.x, ROI.y);
+    mc = cv::Point2f(mu.m10 / mu.m00, mu.m01 / mu.m00) +
+         cv::Point2f(ROI.x, ROI.y);
 
     // Look for round shaped blobs of the correct size
-    if (area >= min_blob_area && area <= max_blob_area
-        && std::abs(1 - std::min((double)rect.width / (double)rect.height, (double)rect.height / (double)rect.width))
-            <= max_width_height_distortion
-        && std::abs(1 - (area / (CV_PI * std::pow(rect.width / 2, 2)))) <= max_circular_distortion
-        && std::abs(1 - (area / (CV_PI * std::pow(rect.height / 2, 2)))) <= max_circular_distortion)
-    {
+    if (area >= min_blob_area && area <= max_blob_area &&
+        std::abs(1 - std::min((double)rect.width / (double)rect.height,
+                              (double)rect.height / (double)rect.width)) <=
+            max_width_height_distortion &&
+        std::abs(1 - (area / (CV_PI * std::pow(rect.width / 2, 2)))) <=
+            max_circular_distortion &&
+        std::abs(1 - (area / (CV_PI * std::pow(rect.height / 2, 2)))) <=
+            max_circular_distortion) {
       distorted_points.push_back(mc);
       numPoints++;
     }
@@ -88,21 +95,20 @@ void LEDDetector::findLeds(const cv::Mat &image, cv::Rect ROI, const int &thresh
   // These will be used for the visualization
   distorted_detection_centers = distorted_points;
 
-  if (numPoints > 0)
-  {
+  if (numPoints > 0) {
     // Vector that will contain the undistorted points
     std::vector<cv::Point2f> undistorted_points;
 
     // Undistort the points
-    cv::undistortPoints(distorted_points, undistorted_points, camera_matrix_K, camera_distortion_coeffs, cv::noArray(),
+    cv::undistortPoints(distorted_points, undistorted_points, camera_matrix_K,
+                        camera_distortion_coeffs, cv::noArray(),
                         camera_matrix_K);
 
     // Resize the vector to hold all the possible LED points
     pixel_positions.resize(numPoints);
 
     // Populate the output vector of points
-    for (unsigned j = 0; j < numPoints; ++j)
-    {
+    for (unsigned j = 0; j < numPoints; ++j) {
       Eigen::Vector2d point;
       point(0) = undistorted_points[j].x;
       point(1) = undistorted_points[j].y;
@@ -111,30 +117,26 @@ void LEDDetector::findLeds(const cv::Mat &image, cv::Rect ROI, const int &thresh
   }
 }
 
-cv::Rect LEDDetector::determineROI(List2DPoints pixel_positions, cv::Size image_size, const int border_size,
-                                   const cv::Mat &camera_matrix_K, const std::vector<double> &camera_distortion_coeffs)
-{
+cv::Rect
+LEDDetector::determineROI(List2DPoints pixel_positions, cv::Size image_size,
+                          const int border_size, const cv::Mat &camera_matrix_K,
+                          const std::vector<double> &camera_distortion_coeffs) {
   double x_min = INFINITY;
   double x_max = 0;
   double y_min = INFINITY;
   double y_max = 0;
 
-  for (unsigned i = 0; i < pixel_positions.size(); ++i)
-  {
-    if (pixel_positions(i)(0) < x_min)
-    {
+  for (unsigned i = 0; i < pixel_positions.size(); ++i) {
+    if (pixel_positions(i)(0) < x_min) {
       x_min = pixel_positions(i)(0);
     }
-    if (pixel_positions(i)(0) > x_max)
-    {
+    if (pixel_positions(i)(0) > x_max) {
       x_max = pixel_positions(i)(0);
     }
-    if (pixel_positions(i)(1) < y_min)
-    {
+    if (pixel_positions(i)(1) < y_min) {
       y_min = pixel_positions(i)(1);
     }
-    if (pixel_positions(i)(1) > y_max)
-    {
+    if (pixel_positions(i)(1) > y_max) {
       y_max = pixel_positions(i)(1);
     }
   }
@@ -147,28 +149,30 @@ cv::Rect LEDDetector::determineROI(List2DPoints pixel_positions, cv::Size image_
   std::vector<cv::Point2f> distorted_points;
 
   // Distort the points
-  distortPoints(undistorted_points, distorted_points, camera_matrix_K, camera_distortion_coeffs);
+  distortPoints(undistorted_points, distorted_points, camera_matrix_K,
+                camera_distortion_coeffs);
 
   double x_min_dist = distorted_points[0].x;
   double y_min_dist = distorted_points[0].y;
   double x_max_dist = distorted_points[1].x;
   double y_max_dist = distorted_points[1].y;
 
-  double x0 = std::max(0.0, std::min((double)image_size.width, x_min_dist - border_size));
-  double x1 = std::max(0.0, std::min((double)image_size.width, x_max_dist + border_size));
-  double y0 = std::max(0.0, std::min((double)image_size.height, y_min_dist - border_size));
-  double y1 = std::max(0.0, std::min((double)image_size.height, y_max_dist + border_size));
+  double x0 = std::max(
+      0.0, std::min((double)image_size.width, x_min_dist - border_size));
+  double x1 = std::max(
+      0.0, std::min((double)image_size.width, x_max_dist + border_size));
+  double y0 = std::max(
+      0.0, std::min((double)image_size.height, y_min_dist - border_size));
+  double y1 = std::max(
+      0.0, std::min((double)image_size.height, y_max_dist + border_size));
 
   cv::Rect region_of_interest;
 
   // if region of interest is too small, use entire image
   // (this happens, e.g., if prediction is outside of the image)
-  if (x1 - x0 < 1 || y1 - y0 < 1)
-  {
+  if (x1 - x0 < 1 || y1 - y0 < 1) {
     region_of_interest = cv::Rect(0, 0, image_size.width, image_size.height);
-  }
-  else
-  {
+  } else {
     region_of_interest.x = x0;
     region_of_interest.y = y0;
     region_of_interest.width = x1 - x0;
@@ -178,9 +182,10 @@ cv::Rect LEDDetector::determineROI(List2DPoints pixel_positions, cv::Size image_
   return region_of_interest;
 }
 
-void LEDDetector::distortPoints(const std::vector<cv::Point2f> & src, std::vector<cv::Point2f> & dst,
-                                const cv::Mat & camera_matrix_K, const std::vector<double> & distortion_matrix)
-{
+void LEDDetector::distortPoints(const std::vector<cv::Point2f> &src,
+                                std::vector<cv::Point2f> &dst,
+                                const cv::Mat &camera_matrix_K,
+                                const std::vector<double> &distortion_matrix) {
   dst.clear();
   double fx_K = camera_matrix_K.at<double>(0, 0);
   double fy_K = camera_matrix_K.at<double>(1, 1);
@@ -193,8 +198,7 @@ void LEDDetector::distortPoints(const std::vector<cv::Point2f> & src, std::vecto
   double p2 = distortion_matrix[3];
   double k3 = distortion_matrix[4];
 
-  for (unsigned int i = 0; i < src.size(); i++)
-  {
+  for (unsigned int i = 0; i < src.size(); i++) {
     // Project the points into the world
     const cv::Point2d &p = src[i];
     double x = (p.x - cx_K) / fx_K;
@@ -223,4 +227,4 @@ void LEDDetector::distortPoints(const std::vector<cv::Point2f> & src, std::vecto
   }
 }
 
-} // namespace
+} // namespace monocular_pose_estimator

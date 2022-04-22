@@ -16,8 +16,8 @@
 /*
  * monocular_pose_estimator.cpp
  *
- * Created on: Jul 29, 2013
- * Author: Karl Schwabe
+ * Created on: 04 22, 2022
+ * Author: yuying.jin
  */
 
 /** \file monocular_pose_estimator_node.cpp
@@ -37,12 +37,24 @@ namespace monocular_pose_estimator {
  */
 MPENode::MPENode(const ros::NodeHandle &nh, const ros::NodeHandle &nh_private)
     : nh_(nh), nh_private_(nh_private), have_camera_info_(false) {
-  // Set up a dynamic reconfigure server.
-  // This should be done before reading parameter server values.
-  dynamic_reconfigure::Server<
-      monocular_pose_estimator::MonocularPoseEstimatorConfig>::CallbackType cb_;
-  cb_ = boost::bind(&MPENode::dynamicParametersCallback, this, _1, _2);
-  dr_server_.setCallback(cb_);
+  // params_.fromNodeHandle(nh_private);
+
+  nh_private_.param("stargazer_config", stargazer_config_, std::string("123"));
+
+  nh_private_.param("threshold", threshold_, 20);
+  nh_private_.param("tight_filter_size", tight_filter_size_, 3);
+  nh_private_.param("wide_filter_size", wide_filter_size_, 11);
+  nh_private_.param("maxRadiusForPixelCluster", maxRadiusForPixelCluster_, 3);
+  nh_private_.param("minPixelForCluster", minPixelForCluster_, 1);
+  nh_private_.param("maxPixelForCluster", maxPixelForCluster_, 1000);
+  nh_private_.param("maxRadiusForCluster", maxRadiusForCluster_, 40);
+  nh_private_.param("minPointsPerLandmark", minPointsPerLandmark_, 5);
+  nh_private_.param("maxPointsPerLandmark", maxPointsPerLandmark_, 9);
+
+  landmarkFinder = std::make_unique<monocular_pose_estimator::LandmarkFinder>(
+      stargazer_config_, threshold_, tight_filter_size_, wide_filter_size_,
+      maxRadiusForPixelCluster_, minPixelForCluster_, maxPixelForCluster_,
+      maxRadiusForCluster_, minPointsPerLandmark_, maxPointsPerLandmark_);
 
   // Initialize subscribers
   image_sub_ =
@@ -57,9 +69,6 @@ MPENode::MPENode(const ros::NodeHandle &nh, const ros::NodeHandle &nh_private)
   // Initialize image publisher for visualization
   image_transport::ImageTransport image_transport(nh_);
   image_pub_ = image_transport.advertise("image_with_detections", 1);
-  params_.fromNodeHandle(nh_private);
-  landmarkFinder = std::make_unique<monocular_pose_estimator::LandmarkFinder>(
-      params_.stargazer_config);
 }
 
 /**
@@ -186,33 +195,6 @@ void MPENode::imageCallback(const sensor_msgs::Image::ConstPtr &image_msg) {
 
     image_pub_.publish(visualized_image_msg.toImageMsg());
   }
-}
-
-/**
- * The dynamic reconfigure callback function. This function updates the variable
- * within the program whenever they are changed using dynamic reconfigure.
- */
-void MPENode::dynamicParametersCallback(
-    monocular_pose_estimator::MonocularPoseEstimatorConfig &config,
-    uint32_t level) {
-  trackable_object_.detection_threshold_value_ = config.threshold_value;
-  trackable_object_.gaussian_sigma_ = config.gaussian_sigma;
-  trackable_object_.min_blob_area_ = config.min_blob_area;
-  trackable_object_.max_blob_area_ = config.max_blob_area;
-  trackable_object_.max_width_height_distortion_ =
-      config.max_width_height_distortion;
-  trackable_object_.max_circular_distortion_ = config.max_circular_distortion;
-  trackable_object_.roi_border_thickness_ = config.roi_border_thickness;
-
-  trackable_object_.setBackProjectionPixelTolerance(
-      config.back_projection_pixel_tolerance);
-  trackable_object_.setNearestNeighbourPixelTolerance(
-      config.nearest_neighbour_pixel_tolerance);
-  trackable_object_.setCertaintyThreshold(config.certainty_threshold);
-  trackable_object_.setValidCorrespondenceThreshold(
-      config.valid_correspondence_threshold);
-
-  ROS_INFO("Parameters changed");
 }
 
 } // namespace monocular_pose_estimator

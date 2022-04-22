@@ -27,7 +27,11 @@ public:
    * @param cfgfile Path to map file with camera intrinsics and landmark poses.
    * @remark The config file has to be generated with ::writeConfig!
    */
-  LandmarkFinder(std::string cfgfile);
+  LandmarkFinder(std::string cfgfile, int threshold_, int tight_filter_size_,
+                 int wide_filter_size_, int maxRadiusForPixelCluster_,
+                 int minPixelForCluster_, int maxPixelForCluster_,
+                 int maxRadiusForCluster_, int minPointsPerLandmark_,
+                 int maxPointsPerLandmark_);
   /**
    * @brief Destructor
    *

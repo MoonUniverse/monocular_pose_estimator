@@ -24,7 +24,13 @@ namespace monocular_pose_estimator {
 ///--------------------------------------------------------------------------------------///
 /// Default constructor
 ///--------------------------------------------------------------------------------------///
-LandmarkFinder::LandmarkFinder(std::string cfgfile) {
+LandmarkFinder::LandmarkFinder(std::string cfgfile, int threshold_,
+                               int tight_filter_size_, int wide_filter_size_,
+                               int maxRadiusForPixelCluster_,
+                               int minPixelForCluster_, int maxPixelForCluster_,
+                               int maxRadiusForCluster_,
+                               int minPointsPerLandmark_,
+                               int maxPointsPerLandmark_) {
 
   /// set parameters
   threshold = 20;

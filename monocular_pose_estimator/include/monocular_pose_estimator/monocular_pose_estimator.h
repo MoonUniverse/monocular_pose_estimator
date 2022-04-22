@@ -48,8 +48,6 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/opencv.hpp>
 
-#include "monocular_pose_estimator/LandmarkFinderConfig.h"
-#include "monocular_pose_estimator/landmark_finder_interface_parameters.h"
 #include "monocular_pose_estimator/marker.h"
 #include "monocular_pose_estimator_lib/landmark_finder.h"
 #include "monocular_pose_estimator_lib/pose_estimator.h"
@@ -61,7 +59,6 @@ private:
   ros::NodeHandle nh_;
   ros::NodeHandle nh_private_;
 
-  LandmarkFinderInterfaceParameters params_;
   image_transport::Publisher image_pub_; //!< The ROS image publisher that
                                          //!< publishes the visualisation image
   ros::Publisher
@@ -90,6 +87,11 @@ private:
                                    //!< will be estimated
 
   std::unique_ptr<monocular_pose_estimator::LandmarkFinder> landmarkFinder;
+
+  std::string stargazer_config_;
+  int threshold_, tight_filter_size_, wide_filter_size_,
+      maxRadiusForPixelCluster_, minPixelForCluster_, maxPixelForCluster_,
+      maxRadiusForCluster_, minPointsPerLandmark_, maxPointsPerLandmark_;
 
 public:
   MPENode(const ros::NodeHandle &nh, const ros::NodeHandle &nh_private);

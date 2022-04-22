@@ -31,6 +31,7 @@
 
 #include "ros/ros.h"
 
+#include <memory>
 #include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/image_encodings.h>
@@ -47,6 +48,10 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/opencv.hpp>
 
+#include "monocular_pose_estimator/LandmarkFinderConfig.h"
+#include "monocular_pose_estimator/landmark_finder_interface_parameters.h"
+#include "monocular_pose_estimator/marker.h"
+#include "monocular_pose_estimator_lib/landmark_finder.h"
 #include "monocular_pose_estimator_lib/pose_estimator.h"
 
 namespace monocular_pose_estimator {
@@ -56,6 +61,7 @@ private:
   ros::NodeHandle nh_;
   ros::NodeHandle nh_private_;
 
+  LandmarkFinderInterfaceParameters params_;
   image_transport::Publisher image_pub_; //!< The ROS image publisher that
                                          //!< publishes the visualisation image
   ros::Publisher
@@ -70,7 +76,7 @@ private:
   // dynamic_reconfigure::Server<monocular_pose_estimator::MonocularPoseEstimatorConfig>::CallbackType
   // cb_; //!< The dynamic reconfigure callback type
 
-  geometry_msgs::PoseWithCovarianceStamped
+  monocular_pose_estimator::marker
       predicted_pose_; //!< The ROS message variable for the estimated pose and
                        //!< covariance of the object
 
@@ -82,6 +88,8 @@ private:
 
   PoseEstimator trackable_object_; //!< Declaration of the object whose pose
                                    //!< will be estimated
+
+  std::unique_ptr<monocular_pose_estimator::LandmarkFinder> landmarkFinder;
 
 public:
   MPENode(const ros::NodeHandle &nh, const ros::NodeHandle &nh_private);

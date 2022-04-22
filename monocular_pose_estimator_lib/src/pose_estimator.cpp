@@ -56,97 +56,82 @@ void PoseEstimator::setMarkerPositions(
 
 List4DPoints PoseEstimator::getMarkerPositions() { return object_points_; }
 
-bool PoseEstimator::estimateBodyPose(cv::Mat image, double time_to_predict) {
-  pose_updated_ = false;
-  // Set up pixel positions list
-  List2DPoints detected_led_positions;
-
-  if (it_since_initialized_ <
-      1) // If not yet initialised, search the whole image for the points
-  {
-    setPredictedTime(time_to_predict);
-
-    region_of_interest_ = cv::Rect(0, 0, image.cols, image.rows);
-
-    // Do detection of LEDs in image
-    LEDDetector::findLeds(
-        image, region_of_interest_, detection_threshold_value_, gaussian_sigma_,
-        min_blob_area_, max_blob_area_, max_width_height_distortion_,
-        max_circular_distortion_, detected_led_positions,
-        distorted_detection_centers_, camera_matrix_K_,
-        camera_distortion_coeffs_);
-
-    printf("Detected led positions: %ld \r\n", detected_led_positions.size());
-
-    if (detected_led_positions.size() >=
-        min_num_leds_detected_) // If found enough LEDs, Reinitialise
-    {
-      // Reinitialise
-      //      ROS_WARN("Initialising using brute-force correspondence search.");
-
-      setImagePoints(detected_led_positions);
-
-      if (initialise() == 1) {
-        optimiseAndUpdatePose(time_to_predict);
-      } else {
-        printf("initialise failed!");
-      }
-    } else { // Too few LEDs found
-      printf("Too few LEDs found!");
-    }
-
-  } else { // If initialised
-
-    predictWithROI(time_to_predict, image);
-
-    // Search image within ROI
-    LEDDetector::findLeds(
-        image, region_of_interest_, detection_threshold_value_, gaussian_sigma_,
-        min_blob_area_, max_blob_area_, max_width_height_distortion_,
-        max_circular_distortion_, detected_led_positions,
-        distorted_detection_centers_, camera_matrix_K_,
-        camera_distortion_coeffs_);
-
-    bool repeat_check = true;
-    unsigned num_loops = 0;
-
-    do {
-      num_loops++;
-      if (detected_led_positions.size() >=
-          min_num_leds_detected_) // If enough LEDs detected
-      {
-        setImagePoints(detected_led_positions);
-        findCorrespondencesAndPredictPose(time_to_predict);
-        repeat_check = false;
-      } else {               // If too few LEDS detected
-        if (num_loops < 2) { // If haven't searched image yet, search image
-
-          //          ROS_WARN("Too few LEDs detected in ROI. Searching whole
-          //          image. Num LEDs detected: %d.",
-          //          (int)detected_led_positions.size());
-
-          // Search whole image
-          region_of_interest_ = cv::Rect(0, 0, image.cols, image.rows);
-
-          // Do detection of LEDs in image
-          LEDDetector::findLeds(
-              image, region_of_interest_, detection_threshold_value_,
-              gaussian_sigma_, min_blob_area_, max_blob_area_,
-              max_width_height_distortion_, max_circular_distortion_,
-              detected_led_positions, distorted_detection_centers_,
-              camera_matrix_K_, camera_distortion_coeffs_);
-
-        } else { // If already searched image continue
-          repeat_check = false;
-          //          ROS_WARN("Too few LEDs detected. Num LEDs detected: %d.",
-          //          (int)detected_led_positions.size());
+bool PoseEstimator::estimateBodyPose(
+    double time_to_predict, std::vector<ImgLandmark> &detected_landmarks) {
+  if (detected_landmarks.size() < 0) {
+    printf("NO ID detected return\r\n");
+    return false;
+  } else {
+    ImgLandmark minId_landmarks;
+    if (detected_landmarks.size() == 1) {
+      minId_landmarks = detected_landmarks[0];
+    } else {
+      unsigned int min_nID = detected_landmarks[0].nID;
+      minId_landmarks = detected_landmarks[0];
+      for (int i = 1; i < detected_landmarks.size(); i++) {
+        if (min_nID > detected_landmarks[i].nID) {
+          min_nID = detected_landmarks[i].nID;
+          minId_landmarks = detected_landmarks[i];
         }
       }
-    } while (repeat_check);
-  }
+    }
+    List2DPoints detected_led_positions;
+    unsigned int vo_points =
+        minId_landmarks.voCorners.size() + minId_landmarks.voIDPoints.size();
 
-  return pose_updated_;
-}
+    detected_led_positions.resize(vo_points);
+    Eigen::Vector2d detect_led;
+    for (int i = 0; i < 3; i++) {
+      detect_led(0) = minId_landmarks.voCorners[i].x;
+      detect_led(1) = minId_landmarks.voCorners[i].y;
+      detected_led_positions[i] = detect_led;
+    }
+    for (int j = 3; j < 3 + minId_landmarks.voIDPoints.size(); j++) {
+      detect_led(0) = minId_landmarks.voIDPoints[j - 3].x;
+      detect_led(1) = minId_landmarks.voIDPoints[j - 3].y;
+      detected_led_positions[j] = detect_led;
+    }
+    setImagePoints(detected_led_positions);
+    std::vector<Point> LandmarkPoints;
+    List4DPoints positions_of_markers_on_object;
+    LandmarkPoints =
+        monocular_pose_estimator::getLandmarkPoints(minId_landmarks.nID);
+    positions_of_markers_on_object.resize(LandmarkPoints.size());
+    for (int i = 0; i < LandmarkPoints.size(); i++) {
+      Eigen::Matrix<double, 4, 1> temp_point;
+      if (i == 0) {
+        temp_point(0) = LandmarkPoints[i][0];
+        temp_point(1) = LandmarkPoints[i][1];
+        temp_point(2) = 0.01;
+        temp_point(3) = 1;
+      } else {
+        temp_point(0) = LandmarkPoints[i][0];
+        temp_point(1) = LandmarkPoints[i][1];
+        temp_point(2) = 0.00;
+        temp_point(3) = 1;
+      }
+      positions_of_markers_on_object(i) = temp_point;
+    }
+
+    setMarkerPositions(positions_of_markers_on_object);
+
+    VectorXuPairs correspondences_set(vo_points, 2);
+
+    for (int i = 0; i < vo_points; i++) {
+      correspondences_set(i, 0) = i + 1;
+      correspondences_set(i, 1) = i + 1;
+    }
+    setCorrespondences(correspondences_set);
+    if (checkCorrespondences() == 1) {
+      optimiseAndUpdatePose(time_to_predict);
+      marker_id_ = minId_landmarks.nID;
+    } else {
+      printf("checkCorrespondences failed! \r\n");
+    }
+  }
+  return true;
+
+} // namespace monocular_pose_estimator
 
 void PoseEstimator::setPredictedPose(const Eigen::Matrix4d &pose, double time) {
   predicted_pose_ = pose;
@@ -156,6 +141,8 @@ void PoseEstimator::setPredictedPose(const Eigen::Matrix4d &pose, double time) {
 Eigen::Matrix4d PoseEstimator::getPredictedPose() { return predicted_pose_; }
 
 Matrix6d PoseEstimator::getPoseCovariance() { return pose_covariance_; }
+
+unsigned int PoseEstimator::getMarkerId() { return marker_id_; }
 
 void PoseEstimator::setImagePoints(List2DPoints points) {
   image_points_ = points;
@@ -258,6 +245,7 @@ void PoseEstimator::calculateImageVectors() {
   Eigen::Vector3d single_vector;
 
   for (unsigned i = 0; i < num_image_points; ++i) {
+
     single_vector(0) =
         (image_points_(i)(0) - camera_matrix_K_.at<double>(0, 2)) /
         camera_matrix_K_.at<double>(0, 0);
@@ -315,7 +303,8 @@ PoseEstimator::correspondencesFromHistogram(MatrixXYu &histogram) {
   unsigned max_value;
   unsigned row_idx, col_idx;
 
-  // for (unsigned j = 0; j < std::min(histogram.rows(), histogram.cols()); ++j)
+  // for (unsigned j = 0; j < std::min(histogram.rows(), histogram.cols());
+  // ++j)
   for (unsigned j = 0; j < histogram.cols(); ++j) {
     max_value = histogram.maxCoeff(&row_idx, &col_idx);
 
@@ -324,11 +313,11 @@ PoseEstimator::correspondencesFromHistogram(MatrixXYu &histogram) {
       break;
 
     correspondences(num_correspondences, 0) =
-        col_idx + 1; // Base one counting of entries, since an entry of 0 shows
-                     // no correspondence.
+        col_idx + 1; // Base one counting of entries, since an entry of 0
+                     // shows no correspondence.
     correspondences(num_correspondences, 1) =
-        row_idx + 1; // Base one counting of entries, since an entry of 0 shows
-                     // no correspondence.
+        row_idx + 1; // Base one counting of entries, since an entry of 0
+                     // shows no correspondence.
     num_correspondences++;
     histogram.col(col_idx).setConstant(0); // Only set the column to zero
   }
@@ -362,8 +351,9 @@ unsigned PoseEstimator::checkCorrespondences() {
   bool valid_correspondences = 0;
   unsigned num_valid_correspondences = 0;
 
-  // The unit image vectors from the camera out to the object points are already
-  // set when the image points are set in PoseEstimator::setImagePoints()
+  // The unit image vectors from the camera out to the object points are
+  // already set when the image points are set in
+  // PoseEstimator::setImagePoints()
 
   if (correspondences_.rows() < 4) {
     return valid_correspondences;
@@ -376,8 +366,8 @@ unsigned PoseEstimator::checkCorrespondences() {
     unsigned N = combinations.rows();
 
     for (unsigned i = 0; i < N; ++i) {
-      // Declare and populate the feature vectors and world points required for
-      // the P3P algorithm
+      // Declare and populate the feature vectors and world points required
+      // for the P3P algorithm
       Eigen::Matrix3d feature_vectors, world_points;
       Eigen::Matrix<Eigen::Matrix<double, 3, 4>, 4, 1> solutions;
 
@@ -518,10 +508,11 @@ unsigned PoseEstimator::initialise() {
   RowXu seen_points_working_vector;
   seen_points_working_vector.setLinSpaced(image_points_.size(), 1,
                                           image_points_.size());
+
   MatrixXYu seen_points_combinations =
       Combinations::combinationsNoReplacement(seen_points_working_vector, 3);
-  unsigned num_seen_points_combinations = seen_points_combinations.rows();
 
+  unsigned num_seen_points_combinations = seen_points_combinations.rows();
   // Permutations of object points
   MatrixXYu object_points_permutations =
       Combinations::permutationsNoReplacement(object_points_.size(), 3);
@@ -530,8 +521,9 @@ unsigned PoseEstimator::initialise() {
   MatrixXYu hist_corr;
   hist_corr.setZero(image_points_.size(), object_points_.size());
 
-  // The unit image vectors from the camera out to the object points are already
-  // set when the image points are set in PoseEstimator::setImagePoints()
+  // The unit image vectors from the camera out to the object points are
+  // already set when the image points are set in
+  // PoseEstimator::setImagePoints()
 
   Eigen::Matrix3d feature_vectors, world_points;
 
@@ -543,6 +535,7 @@ unsigned PoseEstimator::initialise() {
 
     // Build up matrix of unit feature vectors
     feature_vectors.col(0) = image_vectors_(seen_points_combinations(i, 0) - 1);
+
     feature_vectors.col(1) = image_vectors_(seen_points_combinations(i, 1) - 1);
     feature_vectors.col(2) = image_vectors_(seen_points_combinations(i, 2) - 1);
 
@@ -670,9 +663,9 @@ unsigned PoseEstimator::initialise() {
       }
     }
   }
-
   if (!(hist_corr.array() == 0).all()) {
     correspondences_ = correspondencesFromHistogram(hist_corr);
+    std::cout << correspondences_ << std::endl;
     if (checkCorrespondences() == 1) {
       return 1; // Found a solution
     } else {
@@ -697,8 +690,8 @@ void PoseEstimator::optimisePose() {
   Eigen::Matrix4d T_old = predicted_pose_;
   Matrix6d A;
   Vector6d b;
-  Eigen::Matrix2d R; // Covariance matrix of the image points. Assume the image
-                     // points points are independent
+  Eigen::Matrix2d R; // Covariance matrix of the image points. Assume the
+                     // image points points are independent
   R.setIdentity();   // Assume the variance is one pixel in u and v.
   Matrix2x6d J;
   Eigen::Vector2d focal_lengths;
@@ -759,12 +752,7 @@ void PoseEstimator::updatePose() {
 
 void PoseEstimator::optimiseAndUpdatePose(double &time_to_predict) {
   optimisePose();
-
-  if (it_since_initialized_ < 2) {
-    it_since_initialized_++;
-  }
   updatePose();
-  pose_updated_ = true;
 }
 
 void PoseEstimator::predictWithROI(double &time_to_predict,

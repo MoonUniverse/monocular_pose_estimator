@@ -1,1 +1,21 @@
+<launch> 
+    <!-- Name of the YAML file containing the marker positions -->
+    <arg name="YAML_file_name" default="test_marker"/>
+        <!-- File containing the the marker positions in the trackable's frame of reference -->
+        <arg name="marker_positions_file" default="$(find monocular_pose_estimator)/marker_positions/$(arg YAML_file_name).yaml"/> 
+        <node name="node" pkg="monocular_pose_estimator" type="node" respawn="true" output="screen"> 
+        <param name="stargazer_config" value="$(arg marker_positions_file)"/>
 
+        <param name="threshold" value="150"/>
+        <param name="tight_filter_size" value="3"/>
+        <param name="wide_filter_size" value="31"/>
+        <param name="maxRadiusForPixelCluster" value="3"/>
+        <param name="minPixelForCluster" value="1"/>
+        <param name="maxPixelForCluster" value="1000"/>
+        <param name="maxRadiusForCluster" value="40"/>
+        <param name="minPointsPerLandmark" value="5"/>
+        <param name="maxPointsPerLandmark" value="9"/>
+    </node>
+
+    <node name="view_visualisation_image" pkg="image_view" type="image_view" args="image:=/image_with_detections" />
+</launch>

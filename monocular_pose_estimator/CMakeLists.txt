@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 2.8.12)
 project(monocular_pose_estimator)
 
 # Compile as C++11, supported in ROS Kinetic and newer
-add_compile_options(-std=c++11 -pthread)
+add_compile_options(-std=c++14 -pthread)
 add_compile_options(-O3)
 
 ## Find catkin macros and libraries
@@ -19,6 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2
   dynamic_reconfigure
   monocular_pose_estimator_lib
+  message_generation
 )
 
 find_package(Eigen3 REQUIRED)
@@ -27,8 +28,18 @@ find_package(OpenCV REQUIRED)
 
 generate_dynamic_reconfigure_options(
   cfg/MonocularPoseEstimator.cfg
+  cfg/LandmarkFinderInterface.cfg
 )
 
+add_message_files(
+  FILES
+  marker.msg
+)
+
+generate_messages(
+  DEPENDENCIES
+  sensor_msgs
+)
 ###################################
 ## catkin specific configuration ##
 ###################################
@@ -56,9 +67,12 @@ include_directories(
   ${CERES_INCLUDE_DIRS}
 )
 
+add_library(landmark_finder_interface_parameters      src/landmark_finder_interface_parameters.cpp)
+target_link_libraries(landmark_finder_interface_parameters        ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} )
+
 add_library(monocular_pose_estimator      src/monocular_pose_estimator.cpp)
 add_dependencies(monocular_pose_estimator ${PROJECT_NAME}_gencfg)
-target_link_libraries(monocular_pose_estimator        ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} pose_estimator)
+target_link_libraries(monocular_pose_estimator        ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} pose_estimator landmark_finder_interface_parameters)
 
 add_library(nodelet      src/nodelet.cpp)
 target_link_libraries(nodelet       ${catkin_LIBRARIES}  ${OpenCV_LIBRARIES} monocular_pose_estimator)

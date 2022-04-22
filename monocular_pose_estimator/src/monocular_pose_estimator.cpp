@@ -51,38 +51,15 @@ MPENode::MPENode(const ros::NodeHandle &nh, const ros::NodeHandle &nh_private)
                                    &MPENode::cameraInfoCallback, this);
 
   // Initialize pose publisher
-  pose_pub_ = nh_.advertise<geometry_msgs::PoseWithCovarianceStamped>(
-      "estimated_pose", 1);
+  pose_pub_ = nh_.advertise<monocular_pose_estimator::marker>(
+      "/infrared_landmark/estimated_pose", 1);
 
   // Initialize image publisher for visualization
   image_transport::ImageTransport image_transport(nh_);
   image_pub_ = image_transport.advertise("image_with_detections", 1);
-
-  // Create the marker positions from the test points
-  List4DPoints positions_of_markers_on_object;
-
-  // Read in the marker positions from the YAML parameter file
-  XmlRpc::XmlRpcValue points_list;
-  if (!nh_private_.getParam("marker_positions", points_list)) {
-    ROS_ERROR("%s: No reference file containing the marker positions, or the "
-              "file is improperly formatted. Use the 'marker_positions_file' "
-              "parameter in the launch file.",
-              ros::this_node::getName().c_str());
-    ros::shutdown();
-  } else {
-    positions_of_markers_on_object.resize(points_list.size());
-    for (int i = 0; i < points_list.size(); i++) {
-      Eigen::Matrix<double, 4, 1> temp_point;
-      temp_point(0) = points_list[i]["x"];
-      temp_point(1) = points_list[i]["y"];
-      temp_point(2) = points_list[i]["z"];
-      temp_point(3) = 1;
-      positions_of_markers_on_object(i) = temp_point;
-    }
-  }
-  trackable_object_.setMarkerPositions(positions_of_markers_on_object);
-  ROS_INFO("The number of markers on the object are: %d",
-           (int)positions_of_markers_on_object.size());
+  params_.fromNodeHandle(nh_private);
+  landmarkFinder = std::make_unique<monocular_pose_estimator::LandmarkFinder>(
+      params_.stargazer_config);
 }
 
 /**
@@ -144,25 +121,32 @@ void MPENode::imageCallback(const sensor_msgs::Image::ConstPtr &image_msg) {
   }
   cv::Mat image = cv_ptr->image;
 
-  // Get time at which the image was taken. This time is used to stamp the
-  // estimated pose and also calculate the position of where to search for the
+  std::vector<monocular_pose_estimator::ImgLandmark> detected_img_landmarks;
+  landmarkFinder->DetectLandmarks(image, detected_img_landmarks);
+  if (detected_img_landmarks.size() == 0) {
+    ROS_ERROR("NO Infrared landmark detected!");
+    return;
+  }
+
   // makers in the image
   double time_to_predict = image_msg->header.stamp.toSec();
 
-  const bool found_body_pose =
-      trackable_object_.estimateBodyPose(image, time_to_predict);
-  if (found_body_pose) // Only output the pose, if the pose was updated (i.e. a
-                       // valid pose was found).
+  const bool found_body_pose = trackable_object_.estimateBodyPose(
+      time_to_predict, detected_img_landmarks);
+
+  if (found_body_pose) // Only output the pose, if the pose was updated (i.e.
   {
     // Eigen::Matrix4d transform = trackable_object.getPredictedPose();
     Matrix6d cov = trackable_object_.getPoseCovariance();
     Eigen::Matrix4d transform = trackable_object_.getPredictedPose();
+    unsigned int markerId = trackable_object_.getMarkerId();
 
     ROS_DEBUG_STREAM("The transform: \n" << transform);
     ROS_DEBUG_STREAM("The covariance: \n" << cov);
 
     // Convert transform to PoseWithCovarianceStamped message
     predicted_pose_.header.stamp = image_msg->header.stamp;
+    predicted_pose_.id = markerId;
     predicted_pose_.pose.pose.position.x = transform(0, 3);
     predicted_pose_.pose.pose.position.y = transform(1, 3);
     predicted_pose_.pose.pose.position.z = transform(2, 3);

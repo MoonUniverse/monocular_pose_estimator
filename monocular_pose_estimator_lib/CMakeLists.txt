@@ -17,10 +17,11 @@ find_package(catkin REQUIRED COMPONENTS
   tf
   tf2
 )
-
+find_package(catkin REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(yaml-cpp REQUIRED)
 ###################################
 ## catkin specific configuration ##
 ###################################
@@ -53,11 +54,14 @@ target_link_libraries(combinations        ${catkin_LIBRARIES} )
 add_library(led_detector           src/led_detector.cpp)
 target_link_libraries(led_detector        ${catkin_LIBRARIES}  ${OpenCV_LIBRARIES})
 
+add_library(landmark_finder           src/landmark_finder.cpp)
+target_link_libraries(landmark_finder        ${catkin_LIBRARIES}  ${OpenCV_LIBRARIES} yaml-cpp)
+
 add_library(p3p      src/p3p.cpp)
 target_link_libraries(p3p                 ${catkin_LIBRARIES} )
 
 add_library(pose_estimator      src/pose_estimator.cpp)
-target_link_libraries(pose_estimator      ${catkin_LIBRARIES} p3p led_detector combinations visualization)
+target_link_libraries(pose_estimator      ${catkin_LIBRARIES} p3p led_detector combinations visualization landmark_finder)
 
 add_library(visualization      src/visualization.cpp)
 target_link_libraries(visualization       ${catkin_LIBRARIES}  ${OpenCV_LIBRARIES})

@@ -31,6 +31,7 @@
 
 #include "monocular_pose_estimator_lib/combinations.h"
 #include "monocular_pose_estimator_lib/datatypes.h"
+#include "monocular_pose_estimator_lib/landmark_finder.h"
 #include "monocular_pose_estimator_lib/led_detector.h"
 #include "monocular_pose_estimator_lib/p3p.h"
 #include "monocular_pose_estimator_lib/visualization.h"
@@ -38,6 +39,7 @@
 #include <eigen3/Eigen/Geometry>
 #include <iostream>
 #include <math.h>
+#include <memory>
 #include <opencv2/opencv.hpp>
 #include <vector>
 
@@ -65,6 +67,7 @@ private:
                        //!< predicted pose of the object. \see predictPose
   Matrix6d pose_covariance_;   //!< A 6x6 covariance matrix that stores the
                                //!< covariance of the calculated pose
+  unsigned int marker_id_;     //!< Stores the ID of the marker
   double current_time_;        //!< Stores the time of the current pose
   double previous_time_;       //!< Stores the time of the previous pose
   double predicted_time_;      //!< Stores the time of the predicted pose
@@ -493,7 +496,8 @@ public:
   /**
    * Estimates the pose of the tracked object
    */
-  bool estimateBodyPose(cv::Mat image, double time_to_predict);
+  bool estimateBodyPose(double time_to_predict,
+                        std::vector<ImgLandmark> &detected_landmarks);
 
   /**
    * Sets the time at which the pose will be calculated.
@@ -544,6 +548,16 @@ public:
    *
    */
   Matrix6d getPoseCovariance();
+
+  /**
+   * Returns the ID of the marker ot the camera.
+   *
+   * \return
+   *
+   * \see
+   *
+   */
+  unsigned int getMarkerId();
 
   /**
    * Sets the image points of the markers/LEDs that have been detected in the
